@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Quiz, Voting &amp; Ranking</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#f4f5fb;--card:#fff;--ink:#16181d;--mut:#6b7280;--line:#e3e6ee;--acc:#4f46e5;--accs:#e0e7ff;--ok:#16a34a;--bad:#dc2626}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b22;--ink:#eef0f5;--mut:#9aa1b0;--line:#2a2f3a;--acc:#818cf8;--accs:#262a4d;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:18px 14px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}h2{font-size:24px;margin:0 0 10px}h3{font-size:13px;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--accs);color:var(--acc);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+.mut{color:var(--mut);font-size:14px}.center{text-align:center}
+.big{font-size:clamp(22px,4vw,32px);font-weight:700;margin:6px 0 14px}
+.huge{font-size:clamp(30px,7vw,56px);font-weight:800;margin:4px 0}
+input[type=text],input[type=email],input[type=password],input[type=number]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);margin:4px 0;font:inherit}
+.btn{padding:11px 20px;border:0;border-radius:10px;background:var(--acc);color:#fff;cursor:pointer;font:inherit;font-weight:600}
+.btn.sec{background:var(--accs);color:var(--acc)}.btn.del{background:transparent;color:var(--bad);padding:4px 8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row.sp{justify-content:space-between}.row.c{justify-content:center}
+.opts{display:grid;grid-template-columns:1fr;gap:10px}@media(min-width:640px){.opts{grid-template-columns:1fr 1fr}}
+.tile{position:relative;display:flex;align-items:center;gap:12px;padding:18px 16px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit;font-size:18px;font-weight:600;text-align:left;cursor:default;min-height:64px}
+.tile.click{cursor:pointer}.tile.click:hover{border-color:var(--acc)}.tile.click:active{transform:scale(.98)}
+.tile.dim{opacity:.4}.tile.sel{border-color:var(--acc);background:var(--accs)}.tile.right{border-color:var(--ok);background:rgba(22,163,74,.16)}
+.tile .shp{color:var(--mut);width:22px;text-align:center}.swatch{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none}
+.tile .cnt{margin-left:auto;font-size:20px}
+.timer{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.tnum{font-size:28px;font-weight:800;min-width:44px;text-align:center;color:var(--acc)}
+.tbar{flex:1;height:10px;border-radius:9px;background:var(--line);overflow:hidden}.tbar i{display:block;height:100%;background:var(--acc);width:100%}
+.lb .r{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;margin:6px 0;background:var(--bg)}
+.lb .r.me{background:var(--accs);outline:2px solid var(--acc)}
+.lb .n{width:36px;font-weight:800;color:var(--mut)}.lb .nm{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis}.lb .s{font-variant-numeric:tabular-nums;font-weight:700}
+.rb .rbr{position:relative;display:flex;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:10px;margin:8px 0;background:var(--bg);overflow:hidden;font-weight:600}
+.rb .rbr i{position:absolute;left:0;top:0;bottom:0;background:var(--accs);transition:width .5s}
+.rb .rbr span,.rb .rbr b{position:relative}
+.rb .rbr.hi i{background:rgba(22,163,74,.3)}.rb .rbr.lo i{background:rgba(220,38,38,.22)}
+.pod{display:flex;gap:10px;align-items:flex-end;justify-content:center;margin:10px 0 20px}
+.pod div{flex:1;max-width:200px;border-radius:12px 12px 0 0;padding:14px 8px;text-align:center;color:#fff;font-weight:700}
+.pod small{display:block;font-weight:500;opacity:.9}
+.qc{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.orow{display:flex;gap:8px;align-items:center}.orow input[type=checkbox]{width:20px;height:20px;flex:none}
+#qr{display:inline-block;padding:14px;background:#fff;border-radius:12px}
+.pl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;justify-content:center}.pl span{padding:4px 12px;border-radius:99px;background:var(--accs);color:var(--acc);font-weight:600;font-size:14px}
+.good{color:var(--ok)}.bad{color:var(--bad)}
+.win{background:linear-gradient(135deg,#fde68a,#fbbf24);color:#422006;border:0}
+.win .mut{color:#78350f}
+.tw{overflow-x:auto}
+table.rt{width:100%;border-collapse:collapse;font-size:15px}
+.rt th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+.rt td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rt th.n,.rt td.n{text-align:center}
+.rt tr.top td{background:rgba(22,163,74,.1);font-weight:700}
+.rk{display:inline-block;min-width:28px;padding:2px 8px;border-radius:99px;background:var(--bg);font-weight:800;text-align:center}
+.rt tr.top .rk{background:var(--ok);color:#fff}
+.sh{display:flex;align-items:center;gap:8px;min-width:130px}.sh .trk{flex:1;height:10px;border-radius:9px;background:var(--line);overflow:hidden}.sh i{display:block;height:100%;background:var(--acc)}.sh span{font-size:13px;color:var(--mut);width:38px;text-align:right}
+.pod2{display:flex;gap:10px;align-items:flex-end;justify-content:center;margin:14px 0}
+.pod2>div{flex:1;max-width:190px;border-radius:12px 12px 0 0;padding:10px 8px;text-align:center;color:#fff;font-weight:700;word-break:break-word}
+.pod2 small{display:block;font-weight:500;opacity:.95}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏆 Live Quiz · Vote · Rank</h1>
+    <div class="row"><span class="badge" id="role">Player</span><button class="btn sec" id="qrb" style="display:none;padding:4px 12px">📱 QR</button><button class="btn sec" id="out" style="display:none;padding:4px 12px">Sign out</button></div>
+  </header>
+  <div id="app"><div class="card center mut">Loading…</div></div>
+</div>
+<script>
+/* ===== YOUR FIREBASE CONFIG ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDrIRxeRjd7fPbr_bZ5CtsynslT7moTwUI",
+  authDomain: "live-vote-427cc.firebaseapp.com",
+  databaseURL: "https://live-vote-427cc-default-rtdb.firebaseio.com",
+  projectId: "live-vote-427cc",
+  storageBucket: "live-vote-427cc.firebasestorage.app",
+  messagingSenderId: "633623933264",
+  appId: "1:633623933264:web:dab65999f5e33ce366fc55"
+};
+/* ================================ */
+(function(){
+var app=document.getElementById('app'),roleEl=document.getElementById('role'),outEl=document.getElementById('out'),qrb=document.getElementById('qrb');
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function btn(txt,cls,fn){var b=el('button','btn '+(cls||''),txt);b.onclick=fn;return b}
+firebase.initializeApp(firebaseConfig);
+var db=firebase.database(),auth=firebase.auth(),TS=firebase.database.ServerValue.TIMESTAMP;
+var COL=['#e21b3c','#1368ce','#d89e00','#26890c','#8e44ad','#16a085','#d35400','#2c3e50','#c2185b','#00796b'],SH=['▲','◆','●','■','★','✚','⬟','⬢','✦','☗'];
+var MI={quiz:'🧠',poll:'🗳',ranking:'📊'};
+var MODES=[['quiz','🧠 Quiz'],['poll','🗳 Voting'],['ranking','📊 Ranking']];
+var DESC={quiz:'Timed questions with one or more correct answers (or none). Faster correct answers score more. Ends with a leaderboard and a winner.',poll:'Everyone votes for one option, or several if you allow it. See the highest and lowest votes live.',ranking:'Everyone ranks all options from best to worst. Best rank earns the most points.'};
+var quiz=null,state=null,reveal={},players={},answers={},history={},isHost=false,offset=0,revealing=false;
+var playersLoaded=false,joinTried=false,confettiDone=false,histOn=false,hostTab='setup',openHist={},rkDraft={},psel={};
+var wantHost=location.hash==='#host';
+var draft={title:'My Event',mode:'quiz',questions:[newQ()]},nameDraft='',timerNum=null,timerBar=null;
+var qrNode=null,joinUrl=location.href.split('#')[0];
+function newQ(){return{q:'',options:['','','',''],cor:[0],none:false,max:1,wt:true,time:20}}
+function curMode(){return(quiz&&quiz.mode)||'quiz'}
+var pid;try{pid=localStorage.getItem('pid');if(!pid){pid='p'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('pid',pid)}}catch(e){pid='p'+Math.random().toString(36).slice(2)}
+
+/* ---------- scoring & results ---------- */
+function pts(tk,limit){return Math.round(1000*(1-0.5*Math.min(1,tk/(limit*1000))))}
+function parseSet(s){if(s==null||s===''||s===-1||s==='-1')return[];return String(s).split(',').filter(function(x){return x!==''}).map(Number).filter(function(n){return n>=0}).sort(function(x,y){return x-y})}
+function sel(a){if(!a)return[];if(a.m!=null)return parseSet(a.m);return a.c>=0?[a.c]:[]}
+function isRight(a,rv){var cs=parseSet(rv.correct);return cs.length>0&&cs.join(',')===sel(a).join(',')}
+function board(){
+  var by={},rows=Object.keys(players).map(function(id){var r={id:id,name:players[id].name||'?',score:0,time:0};by[id]=r;return r});
+  Object.keys(reveal).forEach(function(q){var rv=reveal[q],a=answers[q]||{};
+    Object.keys(a).forEach(function(id){var r=by[id];if(!r||!isRight(a[id],rv))return;
+      var tk=Math.max(0,a[id].at-rv.start);r.score+=pts(tk,rv.limit);r.time+=tk})});
+  rows.sort(function(a,b){return b.score-a.score||a.time-b.time});
+  rows.forEach(function(r,i){r.rank=i+1});return rows;
+}
+function gained(q,id){var rv=reveal[q],a=(answers[q]||{})[id];return(rv&&a&&isRight(a,rv))?pts(Math.max(0,a.at-rv.start),rv.limit):0}
+function remaining(){if(!state||!state.startedAt)return 0;return Math.max(0,Math.ceil((state.limit*1000-(Date.now()+offset-state.startedAt))/1000))}
+function isOpen(){return !!state&&(!state.limit||remaining()>0)}
+function count(q){return Object.keys(answers[q]||{}).length}
+function wOf(i){return Math.max(1,5-i)}
+function isW(qd){return curMode()==='poll'&&(parseInt(qd.max)||1)>1&&!!qd.wt}
+function selO(a){if(!a)return[];if(a.m!=null)return String(a.m).split(',').filter(function(x){return x!==''}).map(Number).filter(function(n){return n>=0});return a.c>=0?[a.c]:[]}
+function resList(qd,q){
+  var n=qd.options.length,a=answers[q]||{},v=new Array(n).fill(0),p=qd.options.map(function(){return[0,0,0]}),sub=0,rk=curMode()==='ranking',w=isW(qd);
+  Object.keys(a).forEach(function(id){
+    var ord=rk?(a[id].r||'').split(',').filter(function(x){return x!==''}).map(Number):selO(a[id]);
+    ord=ord.filter(function(oi){return oi>=0&&oi<n});if(!ord.length)return;sub++;
+    ord.forEach(function(oi,pos){v[oi]+=rk?n-1-pos:w?wOf(pos):1;if(pos<3)p[oi][pos]++});
+  });
+  var items=qd.options.map(function(o,i){return{i:i,label:o,v:v[i],p:p[i]}});items.sort(function(x,y){return y.v-x.v});
+  return{items:items,max:Math.max.apply(null,v),min:Math.min.apply(null,v),sub:sub,w:w,k:rk?3:(w?Math.min(3,Math.max(1,parseInt(qd.max)||1)):0)};
+}
+function winnersOf(qd,q){var R=resList(qd,q);if(!R.sub||R.max<=0)return[];return R.items.filter(function(i){return i.v===R.max}).map(function(i){return i.label})}
+
+/* ---------- ui pieces ---------- */
+function lb(rows,n,me){
+  var c=el('div','lb');rows.slice(0,n).forEach(function(r){
+    var d=el('div','r'+(r.id===me?' me':''));d.appendChild(el('div','n','#'+r.rank));d.appendChild(el('div','nm',r.name));d.appendChild(el('div','s',r.score+' pts'));c.appendChild(d)});
+  if(!rows.length)c.appendChild(el('div','mut','No players yet.'));return c;
+}
+var COLNAMES='white black red orange yellow green blue purple pink brown gray grey violet indigo cyan magenta maroon navy teal gold silver lime beige turquoise lavender olive aqua coral crimson'.split(' ');
+function colorOf(t){var s=String(t).trim().toLowerCase();if(COLNAMES.indexOf(s)>=0||/^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(s))return s;return ''}
+function tile(i,text,o){
+  o=o||{};var t=el('button','tile'+(o.click?' click':'')+(o.dim?' dim':'')+(o.right?' right':'')+(o.sel?' sel':''));
+  var cl=colorOf(text);
+  if(cl){var sw=el('span','swatch');sw.style.background=cl;t.appendChild(sw)}else t.appendChild(el('span','shp',SH[i%SH.length]));
+  t.appendChild(el('span',null,text));
+  if(o.cnt!=null)t.appendChild(el('span','cnt',String(o.cnt)));
+  if(o.click)t.onclick=o.click;return t;
+}
+function bars(items,max,sub,unit,hiMax,loMin,showCount){
+  var c=el('div','rb'),mx=Math.max(max,1);
+  items.forEach(function(it){
+    var hi=sub&&max>0&&it.v===max,lo=sub&&it.v===loMin&&loMin!==max;
+    var row=el('div','rbr'+(hi?' hi':'')+(lo?' lo':'')),bar=el('i');bar.style.width=Math.round(it.v/mx*100)+'%';
+    row.appendChild(bar);row.appendChild(el('span',null,(hi?'🏆 ':lo?'🔻 ':'')+it.label));row.appendChild(el('b',null,it.v+unit));c.appendChild(row);
+  });
+  if(showCount)c.appendChild(el('div','mut',sub+' response'+(sub===1?'':'s')+' · 🏆 highest · 🔻 lowest'));
+  return c;
+}
+function resBars(qd,q){var R=resList(qd,q);return bars(R.items,R.max,R.sub,(curMode()==='ranking'||R.w)?' pts':'',R.max,R.min,true)}
+function timerBlock(){
+  var t=el('div','timer');timerNum=el('div','tnum','');var b=el('div','tbar');timerBar=el('i');b.appendChild(timerBar);t.appendChild(timerNum);t.appendChild(b);return t;
+}
+function msgCard(t){var c=el('div','card center');c.appendChild(el('div','big',t));return c}
+setInterval(function(){
+  if(!state||state.phase!=='question'||!timerNum||!state.startedAt)return;
+  if(!state.limit){timerNum.textContent='∞';timerBar.style.width='100%';return}
+  var rem=remaining();timerNum.textContent=rem;
+  timerBar.style.width=Math.max(0,Math.min(100,rem/state.limit*100))+'%';
+  if(rem<=0&&isHost&&wantHost)doReveal();
+},250);
+
+function confetti(){
+  var c=document.createElement('canvas');c.style.cssText='position:fixed;left:0;top:0;pointer-events:none;z-index:50';c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);
+  var x=c.getContext('2d'),ps=[],i;
+  for(i=0;i<170;i++)ps.push({x:Math.random()*c.width,y:-20-Math.random()*c.height*.6,vx:Math.random()*4-2,vy:Math.random()*3+2,s:Math.random()*8+5,col:COL[i%COL.length],r:Math.random()*6});
+  var t0=Date.now();(function f(){x.clearRect(0,0,c.width,c.height);ps.forEach(function(p){p.x+=p.vx;p.y+=p.vy;p.r+=.12;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.col;x.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);x.restore()});
+    if(Date.now()-t0<5500)requestAnimationFrame(f);else c.remove()})();
+}
+function showQR(){
+  var o=el('div');o.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:#fff;color:#111;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer;text-align:center;padding:20px';
+  var t=el('div','big',quiz?quiz.title:'Join');t.style.color='#111';var b=el('div');var s=Math.round(Math.min(innerWidth,innerHeight)*.6);
+  try{new QRCode(b,{text:joinUrl,width:s,height:s})}catch(e){}
+  var u=el('div',null,joinUrl);u.style.fontSize='20px';u.style.wordBreak='break-all';var h=el('div',null,'Tap anywhere to close');h.style.color='#666';
+  o.appendChild(t);o.appendChild(b);o.appendChild(u);o.appendChild(h);o.onclick=function(){o.remove()};document.body.appendChild(o);
+}
+qrb.onclick=showQR;
+function copyLink(b){try{navigator.clipboard.writeText(joinUrl);b.textContent='Copied ✓'}catch(e){prompt('Copy this link',joinUrl)}}
+function shareLink(){
+  var txt='Join: '+(quiz?quiz.title:'our event');
+  if(navigator.share)navigator.share({title:txt,text:txt,url:joinUrl}).catch(function(){});
+  else window.open('https://wa.me/?text='+encodeURIComponent(txt+' '+joinUrl),'_blank');
+}
+function downloadQR(){
+  var cv=qrNode&&qrNode.querySelector('canvas');if(!cv){alert('QR not ready');return}
+  var a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download='join-qr.png';document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- host actions ---------- */
+function loadDraft(){
+  return Promise.all([db.ref('quiz').once('value'),db.ref('keys').once('value')]).then(function(r){
+    var q=r[0].val(),k=r[1].val()||[];
+    if(q&&q.questions){draft.title=q.title||'My Event';draft.mode=q.mode||'quiz';draft.questions=q.questions.map(function(x,i){var kv=k[i];return{q:x.q,options:x.options.slice(),cor:kv==null?[0]:parseSet(kv),none:kv!=null&&parseSet(kv).length===0,max:x.max||1,wt:x.wt!=null?!!x.wt:true,time:x.time==null?20:x.time}})}
+  });
+}
+function saveQuiz(){
+  var qs=[],keys=[],mode=draft.mode;
+  for(var i=0;i<draft.questions.length;i++){
+    var d=draft.questions[i],opts=[],cor=[];
+    d.options.forEach(function(o,oi){if(o.trim()){if(!d.none&&d.cor.indexOf(oi)>=0)cor.push(opts.length);opts.push(o.trim())}});
+    if(!d.q.trim()||opts.length<2)return Promise.reject(new Error('Item '+(i+1)+': add the question text and at least 2 options.'));
+    if(mode==='quiz'&&!d.none&&!cor.length)return Promise.reject(new Error('Question '+(i+1)+': tick at least one correct option, or tick “No correct answer”.'));
+    var t=parseInt(d.time);if(isNaN(t))t=mode==='quiz'?20:0;
+    t=mode==='quiz'?Math.max(5,Math.min(120,t)):Math.max(0,Math.min(600,t));
+    var mx=Math.max(1,Math.min(opts.length,parseInt(d.max)||1));
+    if(mode==='ranking')mx=1;
+    if(mode==='quiz'&&cor.length>mx)mx=cor.length;
+    d.max=mx;
+    var qo={q:d.q.trim(),options:opts,time:t};if(mx>1)qo.max=mx;if(mode==='poll'&&mx>1&&d.wt)qo.wt=1;
+    qs.push(qo);keys.push(cor.length===0?-1:cor.length===1?cor[0]:cor.join(','));
+  }
+  return db.ref('quiz').set({title:draft.title.trim()||'Event',mode:mode,questions:qs}).then(function(){return db.ref('keys').set(mode==='quiz'?keys:null)});
+}
+function openLobby(){
+  saveQuiz().then(function(){return Promise.all([db.ref('players').remove(),db.ref('answers').remove(),db.ref('reveal').remove()])})
+   .then(function(){return db.ref('state').set({phase:'lobby',mode:draft.mode})}).catch(function(e){alert(e.message)});
+}
+function startQ(i){db.ref('state').set({phase:'question',qi:i,q:'q'+i,startedAt:TS,limit:quiz.questions[i].time,mode:curMode()}).catch(function(e){alert(e.message)})}
+function doReveal(){
+  if(revealing||!state||state.phase!=='question')return;revealing=true;
+  var s=state,keyP=curMode()==='quiz'?db.ref('keys/'+s.qi).once('value').then(function(x){var v=x.val();return v==null?-1:v}):Promise.resolve(-1);
+  keyP.then(function(cor){return db.ref('reveal/'+s.q).set({correct:cor,start:s.startedAt,limit:s.limit})})
+   .then(function(){return db.ref('state/phase').set('reveal')}).catch(function(e){alert(e.message)}).then(function(){revealing=false});
+}
+function buildHist(){
+  var mode=curMode(),rows=board(),h={title:quiz.title,mode:mode,players:Object.keys(players).length};
+  if(mode==='quiz')h.rows=rows.map(function(r){return{name:r.name,score:r.score,rank:r.rank,pq:quiz.questions.map(function(_,i){return gained('q'+i,r.id)})}});
+  else{
+    h.items=quiz.questions.map(function(qd,i){var R=resList(qd,'q'+i);return{q:qd.q,sub:R.sub,w:R.w?1:0,k:R.k,res:R.items.map(function(x){return{label:x.label,v:x.v,p:x.p}})}});
+    h.plist=Object.keys(players).map(function(id){return{name:players[id].name||'?',a:quiz.questions.map(function(qd,i){
+      var a=(answers['q'+i]||{})[id];if(!a)return'—';
+      var ord=mode==='ranking'?(a.r||'').split(',').filter(function(x){return x!==''}).map(Number):selO(a);
+      ord=ord.filter(function(oi){return oi>=0&&oi<qd.options.length});
+      return ord.length?ord.map(function(oi){return qd.options[oi]}).join(' › '):'skipped'})}});
+  }
+  return h;
+}
+function saveHistory(){var h=buildHist();h.ts=TS;return db.ref('history').push(h)}
+function nextQ(){
+  if(state.qi+1<quiz.questions.length)startQ(state.qi+1);
+  else{db.ref('state/phase').set('finished');saveHistory().catch(function(e){alert('Could not save record: '+e.message)})}
+}
+function resetAll(){if(confirm('End this event and go back to setup?'))Promise.all([db.ref('state').remove(),db.ref('players').remove(),db.ref('answers').remove(),db.ref('reveal').remove()])}
+
+/* ---------- host views ---------- */
+function editor(){
+  var c=el('div','card'),m=draft.mode;c.appendChild(el('h3',null,'Create event'));
+  var mr=el('div','row');MODES.forEach(function(x){mr.appendChild(btn(x[1],draft.mode===x[0]?'':'sec',function(){draft.mode=x[0];draft.questions.forEach(function(q){if(x[0]==='quiz'&&!parseInt(q.time))q.time=20;if(x[0]!=='quiz'&&parseInt(q.time)===20)q.time=0});render(true)}))});
+  c.appendChild(mr);c.appendChild(el('div','mut',DESC[m]));
+  var ti=el('input');ti.type='text';ti.placeholder='Event title';ti.value=draft.title;ti.oninput=function(){draft.title=ti.value};ti.style.marginTop='12px';c.appendChild(ti);
+  draft.questions.forEach(function(q,qi){
+    var qc=el('div','qc'),h=el('div','row sp');h.appendChild(el('strong',null,(m==='quiz'?'Question ':m==='poll'?'Voting ':'Ranking ')+(qi+1)));
+    if(draft.questions.length>1)h.appendChild(btn('Delete','del',function(){draft.questions.splice(qi,1);render(true)}));
+    qc.appendChild(h);
+    var qi2=el('input');qi2.type='text';qi2.placeholder=m==='quiz'?'Type your question':m==='poll'?'What are people voting on?':'What should people rank?';qi2.value=q.q;qi2.oninput=function(){q.q=qi2.value};qc.appendChild(qi2);
+    if(m==='quiz'){
+      qc.appendChild(el('div','mut',q.none?'No correct answer: nobody gets points for this question.':'Tick the correct answer(s). For more than one correct answer, raise “Players can select up to” below first.'));
+      var nr=el('label','orow'),nc=el('input');nc.type='checkbox';nc.checked=!!q.none;nc.onchange=function(){q.none=nc.checked;render(true)};nr.appendChild(nc);nr.appendChild(el('span','mut','No correct answer (question void — no points)'));qc.appendChild(nr);
+    }
+    q.options.forEach(function(o,oi){
+      var r=el('div','orow');
+      if(m==='quiz'){var rd=el('input');rd.type='checkbox';rd.checked=!q.none&&q.cor.indexOf(oi)>=0;rd.disabled=!!q.none;rd.onchange=function(){var k=q.cor.indexOf(oi);if(rd.checked){if(k<0)q.cor.push(oi);if((parseInt(q.max)||1)<=1)q.cor=[oi]}else if(k>=0)q.cor.splice(k,1);render(true)};r.appendChild(rd)}
+      var oin=el('input');oin.type='text';oin.placeholder='Option '+(oi+1);oin.value=o;oin.oninput=function(){q.options[oi]=oin.value};
+      r.appendChild(oin);qc.appendChild(r);
+    });
+    var f=el('div','row');f.style.marginTop='8px';
+    if(q.options.length<10)f.appendChild(btn('+ Option','sec',function(){q.options.push('');render(true)}));
+    f.appendChild(el('span','mut',m==='quiz'?'Time (sec):':'Time (sec, 0 = no limit):'));
+    var tn=el('input');tn.type='number';tn.min=0;tn.max=600;tn.value=q.time;tn.style.width='90px';tn.oninput=function(){q.time=tn.value};
+    f.appendChild(tn);qc.appendChild(f);
+    if(m!=='ranking'){var mrw=el('div','row');mrw.style.marginTop='8px';mrw.appendChild(el('span','mut','Players can select up to'));var mi=el('input');mi.type='number';mi.min=1;mi.max=10;mi.value=q.max||1;mi.style.width='70px';mi.oninput=function(){q.max=mi.value};mi.onchange=function(){render(true)};mrw.appendChild(mi);mrw.appendChild(el('span','mut','option(s) · 1 = single choice'));qc.appendChild(mrw)}
+    if(m==='poll'&&(parseInt(q.max)||1)>1){var wr=el('label','orow');wr.style.marginTop='8px';var wc=el('input');wc.type='checkbox';wc.checked=!!q.wt;wc.onchange=function(){q.wt=wc.checked};wr.appendChild(wc);wr.appendChild(el('span','mut','Score by pick order: 1st pick = 5 pts, 2nd = 4, 3rd = 3, then 2, 1 (off = 1 point each)'));qc.appendChild(wr)}
+    c.appendChild(qc);
+  });
+  var b=el('div','row');b.appendChild(btn(m==='quiz'?'+ Add question':'+ Add another','sec',function(){var q=newQ();if(m!=='quiz')q.time=0;draft.questions.push(q);render(true)}));
+  b.appendChild(btn('Save','sec',function(){saveQuiz().then(function(){alert('Saved ✓')}).catch(function(e){alert(e.message)})}));
+  b.appendChild(btn('Open lobby & show QR →','',openLobby));c.appendChild(b);return c;
+}
+var MED=['🥇','🥈','🥉'],PCL=['#eab308','#94a3b8','#c2763a'];
+function mk(head,rows){
+  var wr=el('div','tw'),t=el('table','rt'),tr=el('tr'),ctr=head.map(function(h){return h.charAt(0)==='~'});
+  head.forEach(function(h,i){tr.appendChild(el('th',ctr[i]?'n':'',ctr[i]?h.slice(1):h))});t.appendChild(tr);
+  rows.forEach(function(r){var x=el('tr',r.top?'top':'');r.cells.forEach(function(cv,i){var td=el('td',ctr[i]?'n':'');if(cv&&cv.nodeType)td.appendChild(cv);else td.textContent=cv;x.appendChild(td)});t.appendChild(x)});
+  wr.appendChild(t);return wr;
+}
+function rankOf(items,it){return 1+items.filter(function(x){return x.v>it.v}).length}
+function resultCard(idx,it,mode){
+  var c=el('div','card'),items=it.res||[],sub=it.sub||0,k=it.k||0,pts=mode==='ranking'||!!it.w;
+  c.appendChild(el('h3',null,'Item '+(idx+1)));c.appendChild(el('div','big',it.q));
+  var mx=items.reduce(function(a,b){return Math.max(a,b.v)},0),tot=items.reduce(function(a,b){return a+b.v},0);
+  if(!sub||mx<=0){c.appendChild(el('div','big','No responses'));return c}
+  c.appendChild(el('div','big good','🏆 Winner: '+items.filter(function(x){return x.v===mx}).map(function(x){return x.label}).join(' & ')));
+  var pod=el('div','pod2'),top=items.slice(0,3).filter(function(x){return x.v>0});
+  [1,0,2].forEach(function(ix){var x=top[ix];if(!x)return;var r=Math.min(rankOf(items,x),4),d=el('div');d.style.height=(70+Math.round(x.v/mx*90))+'px';d.style.background=r<4?PCL[r-1]:'#64748b';
+    d.appendChild(el('div',null,(r<4?MED[r-1]+' ':'')+x.label));d.appendChild(el('small',null,x.v+(pts?' pts':' votes')));pod.appendChild(d)});
+  c.appendChild(pod);
+  var head=['~#','Option'],NM=['1st','2nd','3rd'];for(var j=0;j<k;j++)head.push('~'+NM[j]);head.push('~'+(pts?'Points':'Votes'),'Share');
+  var rows=items.map(function(x){var r=rankOf(items,x),pc=tot?Math.round(x.v/tot*100):0,sh=el('div','sh'),tk=el('div','trk'),bi=el('i');bi.style.width=Math.round(x.v/mx*100)+'%';tk.appendChild(bi);sh.appendChild(tk);sh.appendChild(el('span',null,pc+'%'));
+    var cells=[el('span','rk',String(r)),x.label];for(var j2=0;j2<k;j2++)cells.push(String((x.p||[])[j2]||0));cells.push(String(x.v),sh);return{top:x.v===mx,cells:cells}});
+  c.appendChild(mk(head,rows));
+  var note=sub+' voter'+(sub===1?'':'s');if(it.w)note+=' · Pick-order points: 1st = 5, 2nd = 4, 3rd = 3, then 2, 1';else if(mode==='ranking')note+=' · Best rank earns the most points';
+  var nn=el('div','mut',note);nn.style.marginTop='8px';c.appendChild(nn);return c;
+}
+function glance(h){
+  var c=el('div','card');c.appendChild(el('h3',null,'Winners at a glance'));
+  var rows=(h.items||[]).map(function(it,i){var rs=it.res||[],mx=rs.reduce(function(a,b){return Math.max(a,b.v)},0);
+    return{cells:[String(i+1),it.q,mx>0?rs.filter(function(x){return x.v===mx}).map(function(x){return x.label}).join(' & '):'—',mx>0?mx+((h.mode==='ranking'||it.w)?' pts':' votes'):'—',String(it.sub||0)]}});
+  c.appendChild(mk(['~#','Item','Winner','~Top score','~Voters'],rows));return c;
+}
+function finalBlock(h){var w=el('div');w.appendChild(glance(h));(h.items||[]).forEach(function(it,i){w.appendChild(resultCard(i,it,h.mode))});return w}
+function partTable(h){
+  var c=el('div');c.style.marginTop='12px';
+  if(h.mode==='quiz'){
+    var rs=h.rows||[];if(!rs.length)return c;var nq=rs[0].pq?rs[0].pq.length:0,head=['~#','Name'];
+    for(var i=0;i<nq;i++)head.push('~Q'+(i+1));head.push('~Total');
+    c.appendChild(el('h3',null,'👥 Participants ('+rs.length+')'));
+    c.appendChild(mk(head,rs.map(function(r){var cells=[String(r.rank),r.name];for(var i2=0;i2<nq;i2++)cells.push(String((r.pq||[])[i2]||0));cells.push(String(r.score));return{cells:cells}})));
+  }else{
+    var pl=h.plist||[];if(!pl.length)return c;
+    c.appendChild(el('h3',null,'👥 Participants ('+pl.length+')'));
+    var n=(h.items||[]).length,head2=['~#','Name'];for(var j=0;j<n;j++)head2.push('Item '+(j+1));
+    c.appendChild(mk(head2,pl.map(function(p,ix){return{cells:[String(ix+1),p.name].concat(p.a||[])}})));
+    c.appendChild(el('div','mut','Choices are listed in the order picked (1st › 2nd › 3rd).'));
+  }
+  return c;
+}
+function histDetail(h){
+  var d=el('div');d.style.marginTop='12px';
+  if(h.mode!=='quiz')d.appendChild(finalBlock(h));
+  d.appendChild(partTable(h));return d;
+}
+function historyView(){
+  var c=el('div'),ids=Object.keys(history).sort(function(a,b){return history[b].ts-history[a].ts});
+  if(!ids.length){c.appendChild(msgCard('No saved events yet. Finished events are saved here automatically.'));return c}
+  ids.forEach(function(id){
+    var h=history[id],card=el('div','card'),top=el('div','row sp'),l=el('div');
+    l.appendChild(el('strong',null,h.title));l.appendChild(el('div','mut',(MI[h.mode]||'')+' '+h.mode+' · '+new Date(h.ts).toLocaleString()+' · '+(h.players||0)+' participants'));
+    var r=el('div','row');r.appendChild(btn(openHist[id]?'Hide':'View','sec',function(){openHist[id]=!openHist[id];render(true)}));
+    r.appendChild(btn('Delete','del',function(){if(confirm('Delete this record?'))db.ref('history/'+id).remove()}));
+    top.appendChild(l);top.appendChild(r);card.appendChild(top);if(openHist[id])card.appendChild(histDetail(h));c.appendChild(card);
+  });
+  return c;
+}
+function finishedHost(rows){
+  var w=el('div'),m=curMode();
+  if(m==='quiz'){
+    var win=rows[0],b=el('div','card center win');b.appendChild(el('div','huge','🎉 Congratulations! 🎉'));
+    b.appendChild(el('div','huge',win?win.name:'—'));b.appendChild(el('div','big',win?win.score+' points':''));b.appendChild(el('div','mut','Winner of '+quiz.title));w.appendChild(b);
+    var c=el('div','card');c.appendChild(el('h3',null,'Final leaderboard'));
+    var pod=el('div','pod'),H=[170,130,100],CL=['#eab308','#94a3b8','#c2763a'];
+    [1,0,2].forEach(function(ix){var r=rows[ix];if(!r)return;var d=el('div');d.style.height=H[ix]+'px';d.style.background=CL[ix];d.appendChild(el('div',null,'#'+r.rank+' '+r.name));d.appendChild(el('small',null,r.score+' pts'));pod.appendChild(d)});
+    c.appendChild(pod);c.appendChild(lb(rows,50));w.appendChild(c);
+  }else{
+    var hd=el('div','card center win');hd.appendChild(el('div','huge','🎉 Results are in! 🎉'));hd.appendChild(el('div','mut',quiz.title));w.appendChild(hd);
+    var hh=buildHist();w.appendChild(finalBlock(hh));w.appendChild(partTable(hh));
+  }
+  var f=el('div','card center');f.appendChild(el('div','good','✓ Saved to History'));var b2=el('div','row c');b2.style.marginTop='10px';b2.appendChild(btn('End event','',resetAll));f.appendChild(b2);w.appendChild(f);return w;
+}
+function hostView(){
+  var w=el('div');
+  if(!state||!state.phase){
+    var tabs=el('div','row');tabs.style.marginBottom='14px';
+    tabs.appendChild(btn('➕ New event',hostTab==='setup'?'':'sec',function(){hostTab='setup';render(true)}));
+    tabs.appendChild(btn('📚 History ('+Object.keys(history).length+')',hostTab==='history'?'':'sec',function(){hostTab='history';render(true)}));
+    w.appendChild(tabs);w.appendChild(hostTab==='history'?historyView():editor());return w;
+  }
+  var rows=board(),n=quiz?quiz.questions.length:0,m=curMode();
+  if(state.phase==='lobby'){
+    var c=el('div','card center');c.appendChild(el('h3',null,MI[m]+' Scan to join'));c.appendChild(el('div','big',quiz?quiz.title:''));
+    if(!qrNode){qrNode=el('div');qrNode.id='qr';try{new QRCode(qrNode,{text:joinUrl,width:260,height:260})}catch(e){}}
+    c.appendChild(qrNode);var u=el('div','mut',joinUrl);u.style.margin='10px 0';u.style.wordBreak='break-all';c.appendChild(u);
+    var sr=el('div','row c');var cp=btn('📋 Copy link','sec',function(){copyLink(cp)});sr.appendChild(cp);
+    sr.appendChild(btn('📤 Share','sec',shareLink));sr.appendChild(btn('⬇ Download QR','sec',downloadQR));sr.appendChild(btn('⛶ Full screen','sec',showQR));c.appendChild(sr);
+    var np=Object.keys(players).length;c.appendChild(el('div','big',np+(np===1?' participant':' participants')+' joined'));
+    var pl=el('div','pl');if(m==='quiz')Object.keys(players).forEach(function(id){pl.appendChild(el('span',null,players[id].name))});c.appendChild(pl);
+    var b=el('div','row c');b.style.marginTop='16px';
+    b.appendChild(btn(m==='quiz'?'Start quiz ▶':'Start ▶','',function(){startQ(0)}));b.appendChild(btn('Cancel','sec',resetAll));c.appendChild(b);w.appendChild(c);return w;
+  }
+  var qd=quiz.questions[state.qi];
+  if(state.phase==='question'){
+    var c2=el('div','card');c2.appendChild(el('h3',null,MI[m]+' '+(state.qi+1)+' of '+n));c2.appendChild(timerBlock());c2.appendChild(el('div','big',qd.q));
+    if(m==='quiz'){var g=el('div','opts');qd.options.forEach(function(o,i){g.appendChild(tile(i,o))});c2.appendChild(g);if((parseInt(qd.max)||1)>1)c2.appendChild(el('div','mut',' Players can pick up to '+qd.max+' options'))}
+    else c2.appendChild(resBars(qd,state.q));
+    var np2=Object.keys(players).length,f=el('div','row sp');f.style.marginTop='14px';f.appendChild(el('strong',null,count(state.q)+' / '+np2+' responded'));
+    f.appendChild(btn(m==='quiz'?'Show answer now':'Close & show results','sec',doReveal));c2.appendChild(f);w.appendChild(c2);return w;
+  }
+  if(state.phase==='reveal'){
+    var rv=reveal[state.q]||{correct:-1},c3=el('div','card');c3.appendChild(el('h3',null,MI[m]+' '+(state.qi+1)+' of '+n+' · results'));c3.appendChild(el('div','big',qd.q));
+    if(m==='quiz'){
+      var a=answers[state.q]||{},cn=qd.options.map(function(_,i){return Object.keys(a).filter(function(k){return sel(a[k]).indexOf(i)>=0}).length}),cs=parseSet(rv.correct);
+      var g2=el('div','opts');qd.options.forEach(function(o,i){g2.appendChild(tile(i,o,{cnt:cn[i],dim:cs.length>0&&cs.indexOf(i)<0,right:cs.indexOf(i)>=0}))});c3.appendChild(g2);
+      if(!cs.length)c3.appendChild(el('div','mut center','No correct answer for this question — no points awarded.'));
+    }else{var ws=winnersOf(qd,state.q);if(ws.length)c3.appendChild(el('div','big good','🏆 '+ws.join(' & ')));c3.appendChild(resBars(qd,state.q))}
+    w.appendChild(c3);
+    var b2=el('div','row');b2.style.marginBottom='16px';b2.appendChild(btn(state.qi+1<n?'Next ▶':'Final results 🏆','',nextQ));
+    if(m==='quiz'){var c4=el('div','card');c4.appendChild(el('h3',null,'Top 5 so far'));c4.appendChild(lb(rows,5));c4.appendChild(b2);w.appendChild(c4)}else w.appendChild(b2);
+    return w;
+  }
+  return finishedHost(rows);
+}
+
+/* ---------- player views ---------- */
+function joinCard(msg){
+  var c=el('div','card center');c.appendChild(el('h2',null,quiz?quiz.title:'Join'));c.appendChild(el('div','mut',msg));
+  var i=el('input');i.type='text';i.maxLength=20;i.placeholder='Your name';i.value=nameDraft;i.oninput=function(){nameDraft=i.value};i.style.marginTop='14px';c.appendChild(i);
+  var b=btn('Join','',function(){var nm=i.value.trim();if(!nm){i.focus();return}db.ref('players/'+pid).set({name:nm}).catch(function(e){alert(e.message)})});b.style.marginTop='8px';c.appendChild(b);return c;
+}
+function parseR(s){return s?s.split(',').filter(function(x){return x!==''}).map(Number):null}
+function playerView(){
+  var w=el('div'),joined=!!players[pid],m=curMode();
+  if(!state||!state.phase||!quiz){w.appendChild(msgCard('Waiting for the host to open the event…'));return w}
+  var rows=board(),me=rows.filter(function(r){return r.id===pid})[0],n=quiz.questions.length;
+  if(state.phase==='lobby'){
+    if(m==='quiz')w.appendChild(joined?msgCard('You’re in, '+players[pid].name+'! 🎉 Waiting for the host to start…'):joinCard('Enter your name to join'));
+    else w.appendChild(msgCard(joined?'You’re in! 🎉 Waiting for the host to start…':'Joining…'));
+    return w;
+  }
+  if(!joined){
+    if(m==='quiz'&&state.phase==='question'){w.appendChild(joinCard('Quiz in progress — join to play from the next question'));return w}
+    if(m!=='quiz'){w.appendChild(msgCard('Joining…'));return w}
+    var cc=el('div','card');cc.appendChild(el('h3',null,state.phase==='finished'?'Final results':'Leaderboard'));cc.appendChild(lb(rows,10));w.appendChild(cc);return w;
+  }
+  var qd=quiz.questions[state.qi];
+  if(state.phase==='question'){
+    var my=(answers[state.q]||{})[pid],open=isOpen(),c=el('div','card');
+    c.appendChild(el('h3',null,MI[m]+' '+(state.qi+1)+' of '+n));c.appendChild(timerBlock());c.appendChild(el('div','big',qd.q));
+    var g=el('div','opts');
+    var mx=Math.max(1,parseInt(qd.max)||1),multi=mx>1&&m!=='ranking',wtd=m==='poll'&&multi&&!!qd.wt;
+    var cur=psel[state.q]||(my?(m==='poll'?selO(my):sel(my)):[]);
+    var send=function(arr,skip){var o={c:(skip||!arr.length)?-1:arr[0],at:TS};if(multi&&!skip)o.m=arr.join(',');
+      db.ref('answers/'+state.q+'/'+pid).set(o).then(function(){delete psel[state.q];render(true)}).catch(function(){alert('Could not send your answer')})};
+    var toggle=function(i){var a=cur.slice(),k=a.indexOf(i);if(k>=0)a.splice(k,1);else{if(a.length>=mx){alert('You can select up to '+mx+' options');return}a.push(i)}if(m!=='poll')a.sort(function(x,y){return x-y});psel[state.q]=a;render(true)};
+    var locked=m==='quiz'&&!!my;
+    if(m==='quiz'||m==='poll'){
+      qd.options.forEach(function(o,i){
+        var on=cur.indexOf(i)>=0,clk=null;
+        if(open&&!locked)clk=multi?function(){toggle(i)}:function(){if(m==='poll'&&my&&sel(my)[0]===i)return;send([i])};
+        var wp=wtd?cur.indexOf(i):-1;g.appendChild(tile(i,o,{click:clk,sel:on,cnt:wp>=0?'#'+(wp+1)+' · +'+wOf(wp):null,dim:!!my&&!multi&&!on||(m==='quiz'&&!!my&&!on)}))});
+      c.appendChild(g);
+      var bb2=el('div','row c');bb2.style.marginTop='12px';
+      if(multi&&open&&!locked){var same=!!my&&(m==='poll'?selO(my):sel(my)).join(',')===cur.join(',');
+        bb2.appendChild(btn(same?'Submitted ✓':'Submit ('+cur.length+'/'+mx+')','',function(){if(!cur.length){alert('Select at least one option, or press Skip');return}send(cur)}))}
+      if(!my&&open)bb2.appendChild(btn('Skip / none of these','sec',function(){send([],true)}));
+      if(bb2.childNodes.length)c.appendChild(bb2);
+      var hint;
+      if(m==='quiz')hint=my?(sel(my).length?'Answer locked ✓ — waiting for the results…':'Skipped — waiting for the results…'):open?(multi?'Select up to '+mx+' answers, then press Submit':'Tap your answer'):'Time’s up!';
+      else hint=my?(multi?'Vote saved ✓ — change it and press Submit again until voting closes':'Vote saved ✓ — you can change it until voting closes'):open?(multi?'Select up to '+mx+' options, then press Submit':'Tap an option to vote'):'Voting closed';
+      c.appendChild(el('div','mut center',hint));
+      if(wtd)c.appendChild(el('div','mut center','Pick in order — '+['1st','2nd','3rd'].slice(0,mx).map(function(s2,i2){return s2+' pick = '+wOf(i2)+' pts'}).join(', ')+(mx>3?', then 2, 1…':'')));
+    }else{
+      var order=rkDraft[state.q]||parseR(my&&my.r)||[];
+      qd.options.forEach(function(o,i){var pos=order.indexOf(i);
+        g.appendChild(tile(i,(pos>=0?'#'+(pos+1)+'  ':'')+o,{click:open?function(){var od=order.slice();if(pos>=0)od.splice(pos,1);else od.push(i);rkDraft[state.q]=od;render(true)}:null,sel:pos>=0}))});
+      c.appendChild(g);c.appendChild(el('div','mut center','Tap your favourite first, then the next… (tap again to remove)'));
+      var sent=my&&my.r===order.join(',');
+      var bb=el('div','row c');bb.style.marginTop='12px';
+      bb.appendChild(btn(sent?'Submitted ✓':'Submit ranking','',function(){if(!open)return;if(order.length<qd.options.length){alert('Please rank all options first');return}db.ref('answers/'+state.q+'/'+pid).set({c:0,at:TS,r:order.join(',')}).catch(function(){alert('Could not send ranking')})}));
+      bb.appendChild(btn('Clear','sec',function(){rkDraft[state.q]=[];render(true)}));c.appendChild(bb);
+    }
+    w.appendChild(c);return w;
+  }
+  if(state.phase==='reveal'){
+    if(m!=='quiz'){
+      var c5=el('div','card');c5.appendChild(el('h3',null,'Results'));c5.appendChild(el('div','big',qd.q));
+      var ws=winnersOf(qd,state.q);if(ws.length)c5.appendChild(el('div','big good','🏆 '+ws.join(' & ')));
+      c5.appendChild(resBars(qd,state.q));c5.appendChild(el('div','mut center','Thanks for taking part! Waiting for the host…'));w.appendChild(c5);return w;
+    }
+    var rv=reveal[state.q]||{correct:-1},my2=(answers[state.q]||{})[pid],gp=gained(state.q,pid),c2=el('div','card center'),cs=parseSet(rv.correct),mys=my2?sel(my2):[];
+    if(!my2||!mys.length)c2.appendChild(el('div','big bad',my2?'⏭ Skipped':'⏱ No answer'));else if(!cs.length)c2.appendChild(el('div','big','No correct answer — no points'));else if(gp>0)c2.appendChild(el('div','big good','✓ Correct! +'+gp));else c2.appendChild(el('div','big bad','✗ Wrong'));
+    c2.appendChild(el('div','mut',cs.length?'Correct answer: '+cs.map(function(i){return qd.options[i]}).join(', '):'This question had no correct answer.'));
+    if(me)c2.appendChild(el('div','big','Rank #'+me.rank+' · '+me.score+' pts'));
+    c2.appendChild(el('div','mut','Waiting for the next question…'));w.appendChild(c2);
+    var c3=el('div','card');c3.appendChild(el('h3',null,'Top 5'));c3.appendChild(lb(rows,5,pid));w.appendChild(c3);return w;
+  }
+  if(m!=='quiz'){
+    var hd=el('div','card center win');hd.appendChild(el('div','huge','🎉 Results are in!'));hd.appendChild(el('div','mut',quiz.title));w.appendChild(hd);
+    w.appendChild(finalBlock(buildHist()));
+    return w;
+  }
+  var won=me&&me.rank===1,c4=el('div','card center'+(won?' win':''));
+  if(won){c4.appendChild(el('div','huge','🏆 You won! 🎉'));c4.appendChild(el('div','big',me.score+' points'))}
+  else{c4.appendChild(el('h3',null,'Quiz finished'));if(rows[0])c4.appendChild(el('div','big','🎉 Winner: '+rows[0].name));if(me)c4.appendChild(el('div','big','You finished #'+me.rank+' with '+me.score+' pts'))}
+  w.appendChild(c4);var c7=el('div','card');c7.appendChild(el('h3',null,'Leaderboard'));c7.appendChild(lb(rows,10,pid));w.appendChild(c7);return w;
+}
+function loginCard(){
+  var c=el('div','card');c.appendChild(el('h3',null,'Host login'));
+  var e=el('input');e.type='email';e.placeholder='Host email';var p=el('input');p.type='password';p.placeholder='Password';
+  var err=el('div','mut bad');
+  var go=function(){auth.signInWithEmailAndPassword(e.value.trim(),p.value).catch(function(x){err.textContent=x.message})};
+  p.onkeydown=function(ev){if(ev.key==='Enter')go()};
+  c.appendChild(e);c.appendChild(p);var b=btn('Sign in','',go);b.style.marginTop='8px';c.appendChild(b);c.appendChild(err);return c;
+}
+
+/* ---------- render ---------- */
+function ensureJoin(){
+  if(wantHost||joinTried||!playersLoaded||!quiz||!state||curMode()==='quiz')return;
+  if((state.phase==='lobby'||state.phase==='question')&&!players[pid]){joinTried=true;db.ref('players/'+pid).set({name:'Guest'}).catch(function(){})}
+}
+function render(force){
+  var ae=document.activeElement;
+  if(!force&&ae&&ae.tagName==='INPUT'&&app.contains(ae))return;
+  qrb.style.display=(isHost&&state&&state.phase)?'':'none';
+  timerNum=null;timerBar=null;app.innerHTML='';
+  if(wantHost&&!isHost){app.appendChild(loginCard());return}
+  app.appendChild(wantHost?hostView():playerView());
+  if(state&&state.phase==='finished'){if(!confettiDone){confettiDone=true;confetti()}}else confettiDone=false;
+}
+auth.onAuthStateChanged(function(u){
+  isHost=!!u&&wantHost;roleEl.textContent=isHost?'Host':'Player';outEl.style.display=isHost?'':'none';
+  if(isHost&&!histOn){histOn=true;db.ref('history').on('value',function(s){history=s.val()||{};render(false)},function(){})}
+  if(isHost)loadDraft().then(function(){render(true)});else render(true);
+});
+outEl.onclick=function(){auth.signOut()};
+db.ref('.info/serverTimeOffset').on('value',function(s){offset=s.val()||0});
+db.ref('quiz').on('value',function(s){quiz=s.val();ensureJoin();render(false)});
+db.ref('state').on('value',function(s){state=s.val();ensureJoin();render(true)});
+db.ref('reveal').on('value',function(s){reveal=s.val()||{};render(false)});
+db.ref('players').on('value',function(s){players=s.val()||{};playersLoaded=true;ensureJoin();render(false)});
+db.ref('answers').on('value',function(s){
+  answers=s.val()||{};render(false);
+  if(isHost&&wantHost&&state&&state.phase==='question'&&curMode()==='quiz'){var np=Object.keys(players).length;if(np>0&&count(state.q)>=np)doReveal()}
+});
+window.addEventListener('hashchange',function(){location.reload()});
+render(true);
+})();
+</script>
+</body>
+</html>
